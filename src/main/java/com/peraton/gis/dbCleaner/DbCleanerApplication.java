@@ -4,8 +4,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
@@ -28,6 +31,7 @@ public class DbCleanerApplication {
 	static Properties ivArtemisProperties;
 	static Properties ivDBProperties;
 	static String ivDbUrl;
+	static DateTimeFormatter ivFormatter;
 
 	public DbCleanerApplication () throws IOException {
 		java.sql.Connection aConnection = null;
@@ -57,7 +61,7 @@ public class DbCleanerApplication {
 		SpringApplication.run(DbCleanerApplication.class, args);
 		String delayStr = System.getenv("DELAYTIMESECS");
 		int delaySeconds = Integer.parseInt(delayStr);
-		DateTimeFormatter ivFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd' 'HH:mm:ss").appendTimeZoneOffset("Z", true, 2, 4).toFormatter();
+		ivFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd' 'HH:mm:ss").appendTimeZoneOffset("Z", true, 2, 4).toFormatter();
 		List<String> dbNameList = null;
 		Properties appProperties = null;
 		try {
@@ -69,15 +73,41 @@ public class DbCleanerApplication {
 		}
 		while(true) {
 			if(dbNameList != null && appProperties != null) {
+				Connection aConnection = null;
 				DateTime now = new DateTime(DateTimeZone.UTC);
 				for(String dbName : dbNameList) {
-					String dbColumn = appProperties.getProperty(dbName+"Column");
-					Integer numSeconds = Integer.parseInt(appProperties.getProperty(dbName+"Interval"));
-					String cutoffTime = now.minusSeconds(numSeconds).toString(ivFormatter);
-					String sqlQuery = "DELETE FROM public."+dbName+" WHERE "+dbColumn+"<"+cutoffTime;
-					System.out.println(sqlQuery);
-					String flushQuery = "VACUUM FULL VERBOSE public."+dbName;
-					System.out.println(flushQuery);
+					try {
+						String dbColumn = appProperties.getProperty(dbName+"Column");
+						Integer numSeconds = Integer.parseInt(appProperties.getProperty(dbName+"Interval"));
+						String cutoffTime = now.minusSeconds(numSeconds).toString(ivFormatter);
+						Timestamp aTS = new Timestamp(now.minusSeconds(numSeconds).getMillis());
+						String sqlQuery = "DELETE FROM public."+dbName+" WHERE "+dbColumn+"<?";
+						ivLogger.info(sqlQuery);
+
+						aConnection = DriverManager.getConnection(ivDbUrl, ivDBProperties.getProperty("user"), ivDBProperties.getProperty("password"));
+						PreparedStatement pst = aConnection.prepareStatement(sqlQuery);
+						pst.setTimestamp(1, aTS);
+						pst.executeUpdate();
+						pst.close();
+
+						String flushQuery = "VACUUM FULL VERBOSE public."+dbName;
+						ivLogger.info(flushQuery);
+						PreparedStatement pstv = aConnection.prepareStatement(flushQuery);
+						pstv.executeUpdate();
+						pstv.close();
+					} catch(SQLException e) {
+						ivLogger.info(e.getMessage());
+					} finally {
+						if(aConnection != null) {
+							try {
+								aConnection.close();
+							} catch (SQLException e) {
+								e.printStackTrace();
+							}				
+						}
+					}
+
+				
 				}
 				now = new DateTime(DateTimeZone.UTC);
 				ivLogger.info(now.toString(ivFormatter)+" -- Sleep "+delaySeconds+" seconds until "+now.plusSeconds(delaySeconds).toString(ivFormatter));
