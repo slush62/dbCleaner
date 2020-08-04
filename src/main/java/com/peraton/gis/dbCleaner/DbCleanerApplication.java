@@ -95,6 +95,11 @@ public class DbCleanerApplication {
 						PreparedStatement pstv = aConnection.prepareStatement(flushQuery);
 						pstv.executeUpdate();
 						pstv.close();
+						try {
+							Thread.sleep(400);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
 					} catch(SQLException e) {
 						ivLogger.info(e.getMessage());
 					} finally {
