@@ -16,6 +16,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter'
 	testImplementation('org.springframework.boot:spring-boot-starter-test') {
 		exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+	compile group: 'joda-time', name: 'joda-time', version: '2.10.6'
+	compile group: 'org.postgresql', name: 'postgresql', version: '42.1.4'
 	}
 }
 
