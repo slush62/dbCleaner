@@ -55,6 +55,8 @@ public class DbCleanerApplication {
 	
 	public static void main(String[] args) {
 		SpringApplication.run(DbCleanerApplication.class, args);
+		String delayStr = System.getenv("DELAYTIMESECS");
+		int delaySeconds = Integer.parseInt(delayStr);
 		DateTimeFormatter ivFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd' 'HH:mm:ss").appendTimeZoneOffset("Z", true, 2, 4).toFormatter();
 		List<String> dbNameList = null;
 		Properties appProperties = null;
@@ -74,6 +76,15 @@ public class DbCleanerApplication {
 					String cutoffTime = now.minusSeconds(numSeconds).toString(ivFormatter);
 					String sqlQuery = "DELETE FROM public."+dbName+" WHERE "+dbColumn+"<"+cutoffTime;
 					System.out.println(sqlQuery);
+					String flushQuery = "VACUUM FULL VERBOSE public."+dbName;
+					System.out.println(flushQuery);
+				}
+				now = new DateTime(DateTimeZone.UTC);
+				ivLogger.info(now.toString(ivFormatter)+" -- Sleep "+delaySeconds+" seconds until "+now.plusSeconds(delaySeconds).toString(ivFormatter));
+				try {
+					Thread.sleep(delaySeconds*1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
 				}
 				
 			}
